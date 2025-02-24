@@ -43,6 +43,6 @@ input_penguins
 
 with st.expander('**Input features**'):
   st.write('**Input Penguin**')
-input_df
-st.write('**combined penguins data**')
-input_penguins
+  input_df
+  st.write('**combined penguins data**')
+  input_penguins
