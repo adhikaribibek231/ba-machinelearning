@@ -43,7 +43,7 @@ if stock_symbol:
             st.write("Fetching latest data...")
             scrape_stock_data(stock_symbol)
             file_path = ensure_stock_data(stock_symbol)
-            st.experimental_rerun()
+            st.rerun()
         
         data = pd.read_csv(file_path, index_col="published_date", parse_dates=True)
         required_columns = {"open", "high", "low", "close", "traded_quantity"}
