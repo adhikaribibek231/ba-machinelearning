@@ -32,7 +32,7 @@ if selected_stock == "Search for a new stock...":
 else:
     stock_symbol = selected_stock
 
-if stock_symbol:
+if stock_symbol and stock_symbol not in ["Select a stock...", "Search for a new stock..."]:
     file_path = ensure_stock_data(stock_symbol)
     if file_path:
         last_modified = os.path.getmtime(file_path)
@@ -96,6 +96,26 @@ if stock_symbol:
             st.write(f"Overall Model Accuracy: {overall_accuracy:.2f}%")
             
             # Determine price trend
+            st.subheader("Stock Insights")
+            
+            # Find the biggest trend change
+            data['Daily Change'] = data['Close'].diff()
+            max_trend_change = data['Daily Change'].abs().idxmax()
+            max_trend_value = data.loc[max_trend_change, 'Daily Change']
+            st.write(f"Biggest Trend Change: {max_trend_change.date()} with a change of {max_trend_value:.2f}")
+            
+            # Show a zoomed-in graph for that period
+            trend_fig = go.Figure()
+            trend_fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
+            trend_fig.add_vline(x=max_trend_change, line=dict(color='red', width=2))
+            trend_fig.update_layout(title="Biggest Trend Change Highlight", xaxis_title="Date", yaxis_title="Price")
+            st.plotly_chart(trend_fig)
+            
+            # Find highest recorded stock value
+            highest_value_date = data['Close'].idxmax()
+            highest_value = data.loc[highest_value_date, 'Close']
+            st.write(f"Highest Stock Value Recorded: {highest_value:.2f} on {highest_value_date.date()}")
+            
             st.subheader("Price Trend Predictions")
             previous_close = data.iloc[-4]["Close"] if len(data) > 3 else None
             trend_results = []
