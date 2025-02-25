@@ -36,7 +36,7 @@ if stock_symbol:
     file_path = ensure_stock_data(stock_symbol)
     if file_path:
         last_modified = os.path.getmtime(file_path)
-        last_fetched_date = pd.to_datetime(last_modified, unit='s').strftime('%Y-%m-%d %H:%M:%S')
+        last_fetched_date = pd.to_datetime(last_modified, unit='s').tz_localize('UTC').tz_convert('Asia/Kathmandu').strftime('%Y-%m-%d %H:%M:%S')
         st.write(f"Last fetched: {last_fetched_date}")
         
         if st.button("Update to latest data"):
