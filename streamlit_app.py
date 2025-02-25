@@ -22,7 +22,7 @@ def ensure_stock_data(stock_symbol):
             return None
     return file_path
 
-st.title("Stock Price Prediction App")
+st.title("Stock Price Analysis & Prediction App")
 
 available_stocks = get_available_stocks()
 selected_stock = st.selectbox("Select a stock:", ["Select a stock..."] + available_stocks + ["Search for a new stock..."])
@@ -55,8 +55,8 @@ if stock_symbol and stock_symbol not in ["Select a stock...", "Search for a new 
             data = data.sort_index()
             predictors = ["Open", "High", "Low", "Close", "Volume"]
             
-            train = data.iloc[:-3]  # Use all data except the last 3 days for training
-            test = data.iloc[-3:]   # Use the last 3 days for testing
+            train = data.iloc[:-3]
+            test = data.iloc[-3:]
             
             models = {}
             predictions = {}
@@ -68,67 +68,56 @@ if stock_symbol and stock_symbol not in ["Select a stock...", "Search for a new 
             
             predictions_df = pd.DataFrame(predictions, index=test.index)
             
-            # Plotly interactive chart
+            # Main stock price graph
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=data.index, y=data["Open"], mode='lines', name='Open Price'))
             fig.add_trace(go.Scatter(x=data.index, y=data["Close"], mode='lines', name='Close Price'))
             fig.update_layout(title="Stock Prices Over Time", xaxis_title="Date", yaxis_title="Price", legend_title="Legend")
             st.plotly_chart(fig)
             
-            # Comparison DataFrame
-            comparison = test[["Open", "Close"].copy()]
-            comparison["Predicted_Open"] = predictions_df["Open"]
-            comparison["Predicted_Close"] = predictions_df["Close"]
-            comparison = comparison[["Open", "Predicted_Open", "Close", "Predicted_Close"]]
-            
-            st.subheader("Predicted vs Actual Prices for the Last 3 Days")
-            st.dataframe(comparison)
-            
-            # Calculate accuracy
-            accuracy_open = 100 - mean_absolute_percentage_error(test["Open"], predictions_df["Open"]) * 100
-            accuracy_close = 100 - mean_absolute_percentage_error(test["Close"], predictions_df["Close"]) * 100
-            overall_mape = mean_absolute_percentage_error(test[["Open", "Close"]], predictions_df[["Open", "Close"]])
-            overall_accuracy = 100 - (overall_mape * 100)
-            
-            st.subheader("Accuracy Percentage")
-            st.write(f"Open Price Prediction: {accuracy_open:.2f}%")
-            st.write(f"Close Price Prediction: {accuracy_close:.2f}%")
-            st.write(f"Overall Model Accuracy: {overall_accuracy:.2f}%")
-            
-            # Determine price trend
-            st.subheader("Stock Insights")
-            
-            # Find the biggest trend change
+            # Biggest trend change
+            st.subheader("Biggest Trend Change")
             data['Daily Change'] = data['Close'].diff()
             max_trend_change = data['Daily Change'].abs().idxmax()
             max_trend_value = data.loc[max_trend_change, 'Daily Change']
             st.write(f"Biggest Trend Change: {max_trend_change.date()} with a change of {max_trend_value:.2f}")
             
-            # Show a zoomed-in graph for that period
             trend_fig = go.Figure()
             trend_fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
             trend_fig.add_vline(x=max_trend_change, line=dict(color='red', width=2))
             trend_fig.update_layout(title="Biggest Trend Change Highlight", xaxis_title="Date", yaxis_title="Price")
             st.plotly_chart(trend_fig)
             
-            # Find highest recorded stock value
+            # Highest and lowest stock values
             highest_value_date = data['Close'].idxmax()
             highest_value = data.loc[highest_value_date, 'Close']
+            lowest_value_date = data['Close'].idxmin()
+            lowest_value = data.loc[lowest_value_date, 'Close']
             st.write(f"Highest Stock Value Recorded: {highest_value:.2f} on {highest_value_date.date()}")
+            st.write(f"Lowest Stock Value Recorded: {lowest_value:.2f} on {lowest_value_date.date()}")
             
-            st.subheader("Price Trend Predictions")
-            previous_close = data.iloc[-4]["Close"] if len(data) > 3 else None
-            trend_results = []
+            # Volatility Chart
+            st.subheader("Daily Volatility")
+            data['Daily Volatility'] = (data['Close'] - data['Open']) / data['Open'] * 100
+            volatility_fig = go.Figure()
+            volatility_fig.add_trace(go.Bar(x=data.index, y=data['Daily Volatility'], name='Volatility %'))
+            volatility_fig.update_layout(title="Daily Volatility Chart", xaxis_title="Date", yaxis_title="% Change")
+            st.plotly_chart(volatility_fig)
             
-            for date, row in predictions_df.iterrows():
-                predicted_close = row["Close"]
-                actual_close = test.loc[date, "Close"]
-                if previous_close is not None:
-                    trend = "Increase" if predicted_close > previous_close else "Decrease"
-                    correct_prediction = (trend == "Increase" and actual_close > previous_close) or (trend == "Decrease" and actual_close < previous_close)
-                    correctness = "Correct" if correct_prediction else "Incorrect"
-                    trend_results.append((date.date(), predicted_close, trend, actual_close, correctness))
-                previous_close = actual_close
+            # Moving Averages
+            st.subheader("Moving Averages")
+            data['MA_7'] = data['Close'].rolling(window=7).mean()
+            data['MA_30'] = data['Close'].rolling(window=30).mean()
+            ma_fig = go.Figure()
+            ma_fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
+            ma_fig.add_trace(go.Scatter(x=data.index, y=data['MA_7'], mode='lines', name='7-Day MA'))
+            ma_fig.add_trace(go.Scatter(x=data.index, y=data['MA_30'], mode='lines', name='30-Day MA'))
+            ma_fig.update_layout(title="Moving Averages", xaxis_title="Date", yaxis_title="Price")
+            st.plotly_chart(ma_fig)
             
-            trend_df = pd.DataFrame(trend_results, columns=["Date", "Predicted Close", "Trend", "Actual Close", "Prediction Accuracy"])
-            st.dataframe(trend_df)
+            # Volume Spike Detection
+            st.subheader("Volume Spike Detection")
+            volume_threshold = data['Volume'].quantile(0.95)
+            spikes = data[data['Volume'] > volume_threshold]
+            st.write(f"Detected {len(spikes)} volume spikes.")
+            st.dataframe(spikes[['Volume']])
