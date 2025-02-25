@@ -1,53 +1,93 @@
-import streamlit as st
+import os
 import pandas as pd
-st.title('Penguins')
+import streamlit as st
+import plotly.graph_objects as go
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_percentage_error
+from scraper import scrape_stock_data  # Import the scraping function
 
-st.info('This app is ML')
-with st.expander('Data'):
-  st.write('**Raw Data**')
-  df = pd.read_csv('https://raw.githubusercontent.com/dataprofessor/data/refs/heads/master/penguins_cleaned.csv')
-  df
-  st.write('**X**')
-  X=df.drop('species', axis=1)
-  X
+def ensure_stock_data(stock_symbol):
+    file_path = f"Stock/{stock_symbol}_price_history.csv"
+    if not os.path.exists(file_path):
+        st.warning(f"File {file_path} not found. Attempting to scrape data...")
+        success = scrape_stock_data(stock_symbol)
+        if not success or not os.path.exists(file_path):
+            st.error("Failed to retrieve stock data. Please check the stock symbol.")
+            return None
+    return file_path
 
-  st.write('**y**')
-  y=df.species
-  y
-#"species","island","bill_length_mm","bill_depth_mm","flipper_length_mm","body_mass_g","sex"
-with st.expander('Data visualization'):
-  st.scatter_chart(data=df,x="bill_length_mm", y = "body_mass_g", color='species')
+st.title("Stock Price Prediction App")
+stock_symbol = st.text_input("Enter stock symbol:").upper()
 
-#data preparations
-with st.sidebar:
-  st.header('Input features')
-  "","bill_depth_mm","flipper_length_mm", "body_mass_g"
-  island=st.selectbox('Island',('Biscoe','Dream','Torgersen'))
-  bill_length_mm= st.slider('Bill length (mm)', 13.1, 21.5,17.2)
-  bill_depth_mm= st.slider('Bill depth (mm)', 32.1, 59.6,43.9)
-  flipper_length_mm= st.slider('Flipper length (mm)', 172.0, 231.0,201.0)
-  body_mass_g=st.slider('Body mass (g)', 2700.0, 6300.0,4207.0)
-  gender=st.selectbox('Gender',('male','female'))
-  
-#create a dataframe for input features
-  data={'island':island, 
-      'bill_length_mm':bill_length_mm,
-      'bill_depth_mm':bill_depth_mm,
-      'flipper_length_mm':flipper_length_mm,
-      'body_mass_g':body_mass_g,
-      'sex':gender}
-  input_df=pd.DataFrame(data,index=[0])
-  input_penguins=pd.concat([input_df, X],axis=0)
-input_df
-input_penguins
-
-with st.expander('**Input features**'):
-  st.write('**Input Penguin**')
-  input_df
-  st.write('**combined penguins data**')
-  input_penguins
-
-#encode
-encode = ['island','sex']
-df_penguins=pd.get_dummies(input_penguins,prefix=encode)
-df_penguins[:1]
+if stock_symbol:
+    file_path = ensure_stock_data(stock_symbol)
+    if file_path:
+        data = pd.read_csv(file_path, index_col="published_date", parse_dates=True)
+        required_columns = {"open", "high", "low", "close", "traded_quantity"}
+        
+        if not required_columns.issubset(data.columns):
+            st.error("CSV file is missing required columns.")
+        else:
+            data.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close", "traded_quantity": "Volume"}, inplace=True)
+            data = data.sort_index()
+            predictors = ["Open", "High", "Low", "Close", "Volume"]
+            
+            train = data.iloc[:-3]  # Use all data except the last 3 days for training
+            test = data.iloc[-3:]   # Use the last 3 days for testing
+            
+            models = {}
+            predictions = {}
+            for target in ["Open", "Close"]:
+                model = RandomForestRegressor(n_estimators=200, random_state=1)
+                model.fit(train[predictors], train[target])
+                models[target] = model
+                predictions[target] = model.predict(test[predictors])
+            
+            predictions_df = pd.DataFrame(predictions, index=test.index)
+            
+            # Plotly interactive chart
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=data.index, y=data["Open"], mode='lines', name='Open Price'))
+            fig.add_trace(go.Scatter(x=data.index, y=data["Close"], mode='lines', name='Close Price'))
+            fig.update_layout(title="Stock Prices Over Time", xaxis_title="Date", yaxis_title="Price", legend_title="Legend")
+            st.plotly_chart(fig)
+            
+            # Comparison DataFrame
+            comparison = test[["Open", "Close"].copy()]
+            comparison["Predicted_Open"] = predictions_df["Open"]
+            comparison["Predicted_Close"] = predictions_df["Close"]
+            comparison = comparison[["Open", "Predicted_Open", "Close", "Predicted_Close"]]
+            
+            st.subheader("Predicted vs Actual Prices for the Last 3 Days")
+            st.dataframe(comparison)
+            
+            # Calculate accuracy
+            accuracy_open = 100 - mean_absolute_percentage_error(test["Open"], predictions_df["Open"]) * 100
+            accuracy_close = 100 - mean_absolute_percentage_error(test["Close"], predictions_df["Close"]) * 100
+            overall_mape = mean_absolute_percentage_error(test[["Open", "Close"]], predictions_df[["Open", "Close"]])
+            overall_accuracy = 100 - (overall_mape * 100)
+            
+            st.subheader("Accuracy Percentage")
+            st.write(f"Open Price Prediction: {accuracy_open:.2f}%")
+            st.write(f"Close Price Prediction: {accuracy_close:.2f}%")
+            st.write(f"Overall Model Accuracy: {overall_accuracy:.2f}%")
+            
+            # Determine price trend
+            st.subheader("Price Trend Predictions")
+            previous_close = data.iloc[-4]["Close"] if len(data) > 3 else None
+            trend_results = []
+            
+            for date, row in predictions_df.iterrows():
+                predicted_close = row["Close"]
+                actual_close = test.loc[date, "Close"]
+                if previous_close is not None:
+                    trend = "Increase" if predicted_close > previous_close else "Decrease"
+                    correct_prediction = (trend == "Increase" and actual_close > previous_close) or (trend == "Decrease" and actual_close < previous_close)
+                    correctness = "Correct" if correct_prediction else "Incorrect"
+                    trend_results.append((date.date(), predicted_close, trend, actual_close, correctness))
+                previous_close = actual_close
+            
+            trend_df = pd.DataFrame(trend_results, columns=["Date", "Predicted Close", "Trend", "Actual Close", "Prediction Accuracy"])
+            st.dataframe(trend_df)
