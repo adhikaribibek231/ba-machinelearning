@@ -77,7 +77,7 @@ if stock_symbol and stock_symbol not in ["Select a stock...", "Search for a new 
             
             # Biggest trend change
             st.subheader("Biggest Trend Change")
-            data['Daily Change'] = data['Close'].diff()
+            data.loc[:, 'Daily Change'] = data['Close'].diff()
             max_trend_change = data['Daily Change'].abs().idxmax()
             max_trend_value = data.loc[max_trend_change, 'Daily Change']
             st.write(f"Biggest Trend Change: {max_trend_change.date()} with a change of {max_trend_value:.2f}")
@@ -98,7 +98,7 @@ if stock_symbol and stock_symbol not in ["Select a stock...", "Search for a new 
             
             # Volatility Chart
             st.subheader("Daily Volatility")
-            data['Daily Volatility'] = (data['Close'] - data['Open']) / data['Open'] * 100
+            data.loc[:, 'Daily Volatility'] = (data['Close'] - data['Open']) / data['Open'] * 100
             volatility_fig = go.Figure()
             volatility_fig.add_trace(go.Bar(x=data.index, y=data['Daily Volatility'], name='Volatility %'))
             volatility_fig.update_layout(title="Daily Volatility Chart", xaxis_title="Date", yaxis_title="% Change")
@@ -106,8 +106,8 @@ if stock_symbol and stock_symbol not in ["Select a stock...", "Search for a new 
             
             # Moving Averages
             st.subheader("Moving Averages")
-            data['MA_7'] = data['Close'].rolling(window=7).mean()
-            data['MA_30'] = data['Close'].rolling(window=30).mean()
+            data.loc[:, 'MA_7'] = data['Close'].rolling(window=7).mean()
+            data.loc[:, 'MA_30'] = data['Close'].rolling(window=30).mean()
             ma_fig = go.Figure()
             ma_fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
             ma_fig.add_trace(go.Scatter(x=data.index, y=data['MA_7'], mode='lines', name='7-Day MA'))
