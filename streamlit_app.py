@@ -14,7 +14,7 @@ def get_available_stocks():
 
 def ensure_stock_data(stock_symbol):
     file_path = f"Stock/{stock_symbol}_price_history.csv"
-    if not os.path.exists(file_path):
+    if stock_symbol not in ["Select a stock...", "Search for a new stock..."] and not os.path.exists(file_path):
         st.warning(f"File {file_path} not found. Attempting to scrape data...")
         success = scrape_stock_data(stock_symbol)
         if not success or not os.path.exists(file_path):
