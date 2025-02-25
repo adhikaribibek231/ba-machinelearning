@@ -8,6 +8,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_percentage_error
 from scraper import scrape_stock_data  # Import the scraping function
 
+def get_available_stocks():
+    stock_dir = "Stock/"
+    return [f.split("_price_history.csv")[0] for f in os.listdir(stock_dir) if f.endswith("_price_history.csv")]
+
 def ensure_stock_data(stock_symbol):
     file_path = f"Stock/{stock_symbol}_price_history.csv"
     if not os.path.exists(file_path):
@@ -19,11 +23,28 @@ def ensure_stock_data(stock_symbol):
     return file_path
 
 st.title("Stock Price Prediction App")
-stock_symbol = st.text_input("Enter stock symbol:").upper()
+
+available_stocks = get_available_stocks()
+selected_stock = st.selectbox("Select a stock:", available_stocks + ["Search for a new stock..."])
+
+if selected_stock == "Search for a new stock...":
+    stock_symbol = st.text_input("Enter new stock symbol:").upper()
+else:
+    stock_symbol = selected_stock
 
 if stock_symbol:
     file_path = ensure_stock_data(stock_symbol)
     if file_path:
+        last_modified = os.path.getmtime(file_path)
+        last_fetched_date = pd.to_datetime(last_modified, unit='s').strftime('%Y-%m-%d %H:%M:%S')
+        st.write(f"Last fetched: {last_fetched_date}")
+        
+        if st.button("Update to latest data"):
+            st.write("Fetching latest data...")
+            scrape_stock_data(stock_symbol)
+            file_path = ensure_stock_data(stock_symbol)
+            st.experimental_rerun()
+        
         data = pd.read_csv(file_path, index_col="published_date", parse_dates=True)
         required_columns = {"open", "high", "low", "close", "traded_quantity"}
         
