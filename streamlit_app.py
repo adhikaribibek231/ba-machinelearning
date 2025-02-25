@@ -25,7 +25,7 @@ def ensure_stock_data(stock_symbol):
 st.title("Stock Price Prediction App")
 
 available_stocks = get_available_stocks()
-selected_stock = st.selectbox("Select a stock:", available_stocks + ["Search for a new stock..."])
+selected_stock = st.selectbox("Select a stock:", ["Select a stock..."] + available_stocks + ["Search for a new stock..."])
 
 if selected_stock == "Search for a new stock...":
     stock_symbol = st.text_input("Enter new stock symbol:").upper()
